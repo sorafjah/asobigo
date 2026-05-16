@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>おでかけシミュレーター</title>
+<style>
+  :root {
+    --bg: #fdf6e3;
+    --surface: #fff8e7;
+    --border: #e8d5a3;
+    --text: #3d2c00;
+    --sub: #7a5f28;
+    --accent: #e8913a;
+    --correct: #4caf50;
+    --blue: #1976D2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    font-family: 'BIZ UDPGothic', 'BIZ UDGothic', sans-serif;
+    background: var(--bg);
+    overflow: hidden;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ===== SCREENS ===== */
+  .screen { display: none; position: absolute; top:0; left:0; width:100%; height:100%; }
+  .screen.active { display: flex; }
+
+  /* ===== START SCREEN ===== */
+  #start-screen {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 14px;
+    gap: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .start-title { font-size: 24px; font-weight: bold; color: var(--text); text-align: center; }
+
+  .setup-card {
+    width: 100%; max-width: 480px;
+    background: white; border: 2px solid var(--border); border-radius: 16px;
+    padding: 14px 16px;
+  }
+  .setup-card-title { font-size: 13px; font-weight: bold; color: var(--sub); margin-bottom: 10px; }
+  .setup-total { font-size: 30px; font-weight: bold; color: var(--accent); text-align: center; margin-bottom: 10px; }
+
+  .denom-setup-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 0; border-bottom: 1px solid var(--border);
+  }
+  .denom-setup-row:last-child { border-bottom: none; }
+  .denom-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; font-weight: bold; color: var(--text); min-width: 90px;
+  }
+  .step-ctrl { display: flex; align-items: center; gap: 8px; }
+  .step-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 2px solid var(--border); background: white;
+    font-size: 15px; cursor: pointer; font-family: inherit; color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .step-btn:active { background: #fff0cc; }
+  .step-val { font-size: 16px; font-weight: bold; color: var(--text); min-width: 28px; text-align: center; }
+
+  .start-go-btn {
+    width: 100%; max-width: 480px;
+    padding: 15px; border: none; border-radius: 26px;
+    background: var(--accent); color: white;
+    font-family: inherit; font-size: 20px; font-weight: bold;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 4px 0 #b86a1a;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .start-go-btn:active { transform: translateY(4px); box-shadow: none; }
+
+  /* ===== MAIN SCREEN ===== */
+  #main-screen {
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 8px;
+    gap: 6px;
+    width: 100%;
+  }
+
+  /* シナリオエリア */
+  #scenario-area {
+    width: 100%; flex-shrink: 0;
+    background: white; border: 2px solid var(--border); border-radius: 14px;
+    padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 8px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: 56vh;
+  }
+  #scenario-title { font-size: 17px; font-weight: bold; color: var(--accent); }
+  #scenario-text  { font-size: 14px; color: var(--text); line-height: 1.5; }
+  #scenario-content { display: flex; flex-direction: column; gap: 8px; }
+
+  /* 選択肢ボタン */
+  .choice-btn {
+    background: var(--surface); border: 2px solid var(--border);
+    border-radius: 12px; padding: 12px 14px;
+    font-size: 16px; font-weight: bold; color: var(--text);
+    cursor: pointer; font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.1s; text-align: left;
+  }
+  .choice-btn:active { transform: scale(0.96); background: #fff3e0; border-color: var(--accent); }
+  .choice-btn.home-btn { background: #f0faf0; border-color: #a5d6a7; color: #2e7d32; }
+
+  /* ===== 路線図（横並び） ===== */
+  .route-wrap {
+    background: var(--surface); border: 2px solid var(--border); border-radius: 12px;
+    padding: 12px 8px 8px;
+  }
+  .route-dir-labels {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: var(--sub); margin-bottom: 6px; padding: 0 4px;
+  }
+  .route-line {
+    display: flex; align-items: center;
+    position: relative;
+  }
+  /* 路線の横棒（絶対配置） */
+  .route-line::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    height: 5px; margin-top: -2px;
+    background: var(--text);
+    border-radius: 3px;
+    z-index: 0;
+    transform: translateY(-10px); /* 駅名分上にずらす */
+  }
+  .station-col {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 4px; position: relative; z-index: 1;
+    flex: 1;
+  }
+  .station-dot {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 3px solid var(--text); background: white;
+    flex-shrink: 0;
+    transition: transform 0.12s, border-color 0.12s, background 0.12s;
+  }
+  .station-dot.mystation {
+    background: var(--accent); border-color: var(--accent);
+    width: 24px; height: 24px;
+    box-shadow: 0 0 0 3px rgba(232,145,58,0.35);
+  }
+  .station-dot.selectable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .station-dot.selectable:active { transform: scale(1.25); }
+  .station-dot.chosen {
+    background: var(--accent); border-color: var(--accent);
+    transform: scale(1.25);
+    box-shadow: 0 0 0 3px rgba(232,145,58,0.45);
+  }
+  .station-name {
+    font-size: 10px; font-weight: bold; color: var(--text);
+    text-align: center; line-height: 1.2;
+    white-space: nowrap;
+  }
+  .station-name.mystation-lbl { color: var(--accent); }
+  .station-fare {
+    font-size: 11px; color: var(--sub);
+    background: #f5f0e8; border-radius: 5px;
+    padding: 1px 5px; white-space: nowrap;
+  }
+
+  /* 運賃確認 */
+  .fare-confirm {
+    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    border-top: 2px dashed var(--border); padding-top: 8px; margin-top: 2px;
+  }
+  .fare-label { font-size: 14px; font-weight: bold; color: var(--sub); }
+  .fare-price { font-size: 24px; font-weight: bold; color: var(--accent); }
+
+  /* 商品カード */
+  #select-cards-row {
+    display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px;
+  }
+  .product-card {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 8px 6px; border-radius: 12px;
+    border: 3px solid var(--border); background: var(--surface);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s, border-color 0.1s;
+    width: calc(50% - 4px); max-width: 160px;
+    font-family: inherit;
+  }
+  .product-card:active { transform: scale(0.94); }
+  .product-card.chosen {
+    border-color: var(--accent); background: #fff3e0;
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(232,145,58,0.3);
+  }
+  .card-emoji { font-size: 28px; line-height: 1; }
+  .card-name  { font-size: 11px; color: var(--sub); text-align: center; line-height: 1.2; height: 26px; overflow: hidden; }
+  .card-price { font-size: 15px; font-weight: bold; color: var(--text); }
+
+  .total-row {
+    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    border-top: 2px dashed var(--border); padding-top: 8px;
+  }
+  .total-label { font-size: 14px; font-weight: bold; color: var(--sub); }
+  .total-price { font-size: 24px; font-weight: bold; color: var(--accent); }
+
+  /* 単品 */
+  .single-item {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--surface); padding: 10px 12px;
+    border-radius: 12px; border: 2px solid var(--border);
+  }
+  .single-emoji { font-size: 38px; }
+  .single-name  { font-size: 14px; color: var(--sub); }
+  .single-price { font-size: 22px; font-weight: bold; color: var(--text); }
+
+  /* 結果 */
+  .result-list { display: flex; flex-direction: column; gap: 4px; }
+  .result-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .result-item.total-line {
+    background: #fff3e0; border-color: var(--accent);
+    font-weight: bold; font-size: 15px;
+  }
+  .result-remain {
+    text-align: center; padding: 12px;
+    background: #e8f5e9; border-radius: 12px; border: 2px solid #a5d6a7;
+    font-size: 18px; font-weight: bold; color: #2e7d32; margin-top: 4px;
+  }
+
+  /* ===== 財布 ===== */
+  #wallet-block {
+    flex: 1; display: flex; flex-direction: column; gap: 4px;
+    width: 100%; min-height: 0;
+  }
+  #wallet-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 4px; flex-shrink: 0;
+  }
+  #wallet-title { font-size: 14px; font-weight: bold; color: var(--sub); }
+  #wallet-sum   { font-size: 14px; font-weight: bold; color: var(--text); }
+  #wallet-area {
+    flex: 1; background: var(--surface); border: 2px solid var(--border); border-radius: 14px;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 4px 8px; display: flex; flex-direction: column; min-height: 0;
+  }
+  .denom-row {
+    display: flex; align-items: center; gap: 4px; flex-wrap: nowrap;
+    padding: 2px 0; border-bottom: 1px solid var(--border); min-height: 56px;
+  }
+  .denom-row:last-child { border-bottom: none; }
+
+  /* ===== ボタン行 ===== */
+  #btn-row { display: flex; gap: 8px; width: 100%; flex-shrink: 0; }
+  .action-btn {
+    flex: 1; font-family: inherit; font-size: 17px; font-weight: bold;
+    padding: 11px 8px; border-radius: 20px; border: none; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.12);
+    transition: transform 0.1s, box-shadow 0.1s;
+    white-space: nowrap;
+  }
+  .action-btn:active { transform: translateY(4px); box-shadow: none; }
+  #btn-pay  { background: var(--accent); color: white; }
+  #btn-cant { background: #d8c8a0; color: var(--sub); }
+  #btn-next { background: var(--blue); color: white; display: none; }
+
+  /* ===== お金ボタン ===== */
+  .money-btn {
+    background: none; border: 3px solid transparent; border-radius: 50%;
+    padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    position: relative; flex-shrink: 0;
+    transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+    display: flex; align-items: center; justify-content: center;
+    transform-origin: center bottom;
+  }
+  .money-btn.is-note { border-radius: 8px; }
+  .money-btn:active  { transform: scale(0.88); }
+  .money-btn.selected {
+    border-color: var(--blue);
+    transform: translateY(-8px) scale(1.12);
+    box-shadow: 0 6px 16px rgba(25,118,210,0.5);
+  }
+  @keyframes flyPay {
+    0%   { transform:scale(1) translateY(0); opacity:1; }
+    60%  { transform:scale(0.7) translateY(-30px); opacity:0.7; }
+    100% { transform:scale(0.3) translateY(-80px); opacity:0; }
+  }
+  .money-btn.paying { animation: flyPay 0.42s ease forwards; }
+  @keyframes flyReturn {
+    0%   { transform:scale(0.2) translateY(60px); opacity:0; }
+    50%  { transform:scale(1.15) translateY(-6px); opacity:1; }
+    100% { transform:scale(1) translateY(0); opacity:1; }
+  }
+  .money-btn.returning { animation: flyReturn 0.45s cubic-bezier(.22,1,.36,1) both; }
+
+  /* ===== ポップアップ ===== */
+  #popup {
+    position: fixed; inset:0; background: rgba(40,20,0,0.45);
+    display: none; align-items: center; justify-content: center; z-index: 500;
+  }
+  #popup.show { display: flex; }
+  #popup-inner {
+    background: white; border-radius: 22px; padding: 22px 28px;
+    text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    animation: popIn 0.3s cubic-bezier(.34,1.56,.64,1) both; max-width: 90vw;
+  }
+  @keyframes popIn { 0%{transform:scale(0.5);opacity:0} 100%{transform:scale(1);opacity:1} }
+  #popup-emoji  { font-size: 46px; letter-spacing: 4px; }
+  #popup-title  { font-size: 22px; font-weight: bold; color: var(--correct); }
+  #popup-desc   { font-size: 13px; color: var(--sub); }
+  #popup-change { font-size: 22px; font-weight: bold; color: var(--text); }
+  .popup-btn {
+    font-family: inherit; font-size: 17px; font-weight: bold;
+    padding: 11px 32px; border: none; border-radius: 24px;
+    cursor: pointer; color: white; -webkit-tap-highlight-color: transparent;
+  }
+  #btn-get-change  { background: var(--correct); }
+  #btn-ok-nochange { background: var(--accent); }
+
+  /* ===== トースト ===== */
+  #toast {
+    position: fixed; top:50%; left:50%;
+    transform: translate(-50%,-50%) scale(0.6);
+    background: rgba(255,200,100,0.97); color: #3d2c00;
+    font-size: 22px; font-weight: bold;
+    padding: 14px 28px; border-radius: 20px;
+    pointer-events: none; opacity: 0; z-index: 300;
+    transition: opacity 0.2s, transform 0.2s; white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(180,120,0,0.3);
+  }
+  #toast.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+</style>
+</head>
+<body>
+
+<!-- ===== START ===== -->
+<div id="start-screen" class="screen active">
+  <div class="start-title">おでかけシミュレーター</div>
+
+  <div class="setup-card">
+    <div class="setup-card-title">お小遣いを用意しよう</div>
+    <div class="setup-total" id="setup-total">0円</div>
+    <div id="denom-setup-rows"></div>
+  </div>
+
+  <button class="start-go-btn" id="start-go-btn">出発！</button>
+</div>
+
+<!-- ===== MAIN ===== -->
+<div id="main-screen" class="screen">
+  <div id="scenario-area">
+    <div id="scenario-title"></div>
+    <div id="scenario-text"></div>
+    <div id="scenario-content"></div>
+  </div>
+
+  <div id="wallet-block">
+    <div id="wallet-header">
+      <div id="wallet-title">さいふのなか</div>
+      <div id="wallet-sum">0円</div>
+    </div>
+    <div id="wallet-area"></div>
+  </div>
+
+  <div id="btn-row">
+    <button class="action-btn" id="btn-pay">しはらう</button>
+    <button class="action-btn" id="btn-cant">がまんする</button>
+    <button class="action-btn" id="btn-next">つぎへ</button>
+  </div>
+</div>
+
+<!-- ===== ポップアップ ===== -->
+<div id="popup">
+  <div id="popup-inner">
+    <div id="popup-emoji"></div>
+    <div id="popup-title">かえたよ！</div>
+    <div id="popup-desc"></div>
+    <div id="popup-change" style="display:none"></div>
+    <button class="popup-btn" id="btn-get-change"  style="display:none">おつりをもらう</button>
+    <button class="popup-btn" id="btn-ok-nochange" style="display:none">つぎへ</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ===== 定数 ===== */
+const DENOMS=[
+  {val:1000,type:'note'},{val:500,type:'coin'},{val:100,type:'coin'},
+  {val:50,type:'coin'},{val:10,type:'coin'},{val:5,type:'coin'},{val:1,type:'coin'}
+];
+const COIN_SIZE=52, NOTE_W=82, NOTE_H=48;
+
+/* ===== 駅データ ===== */
+// 路線：B-C-D-A(自駅)-E-F-G-H
+const STATIONS=[
+  {id:'B',name:'えのき駅', distFromA:4},
+  {id:'C',name:'かわせ駅', distFromA:3},
+  {id:'D',name:'もみじ駅', distFromA:2},
+  {id:'A',name:'みさき駅', distFromA:0, myStation:true},
+  {id:'E',name:'ひのき駅', distFromA:1},
+  {id:'F',name:'つばめ駅', distFromA:2},
+  {id:'G',name:'あさひ駅', distFromA:3},
+  {id:'H',name:'かすみ駅', distFromA:4},
+];
+function getFare(dist){ return [0,140,190,240,310][Math.min(dist,4)]; }
+
+/* ===== 場所データ ===== */
+const PLACES=[
+  {name:'ゲームセンター',emoji:'🎮',items:[
+    {name:'UFOキャッチャー',emoji:'🧸',price:200},
+    {name:'太鼓のゲーム',emoji:'🥁',price:100},
+    {name:'プリクラ',emoji:'📸',price:500},
+    {name:'メダルゲーム',emoji:'🪙',price:300},
+  ]},
+  {name:'カラオケ',emoji:'🎤',items:[
+    {name:'1時間（ひとり）',emoji:'🎵',price:500},
+    {name:'ドリンクバー',emoji:'🥤',price:200},
+    {name:'フライドポテト',emoji:'🍟',price:350},
+    {name:'フリータイム',emoji:'🎶',price:800},
+  ]},
+  {name:'ファミレス',emoji:'🍽️',items:[
+    {name:'ハンバーグ',emoji:'🍔',price:780},
+    {name:'パスタ',emoji:'🍝',price:680},
+    {name:'ドリンクバー',emoji:'🥤',price:220},
+    {name:'デザート',emoji:'🍰',price:380},
+  ]},
+  {name:'コンビニ',emoji:'🏪',items:[
+    {name:'おにぎり',emoji:'🍙',price:130},
+    {name:'サンドイッチ',emoji:'🥪',price:220},
+    {name:'ジュース',emoji:'🧃',price:150},
+    {name:'アイス',emoji:'🍦',price:130},
+    {name:'スナック',emoji:'🍿',price:110},
+  ]},
+  {name:'タピオカ屋',emoji:'🧋',items:[
+    {name:'ミルクティー',emoji:'🧋',price:480},
+    {name:'抹茶タピオカ',emoji:'🍵',price:520},
+    {name:'マンゴータピオカ',emoji:'🥭',price:530},
+  ]},
+  {name:'本屋・文具',emoji:'📚',items:[
+    {name:'マンガ1冊',emoji:'📖',price:480},
+    {name:'ノート',emoji:'📓',price:220},
+    {name:'ボールペン',emoji:'🖊️',price:110},
+    {name:'シール',emoji:'⭐',price:150},
+  ]},
+];
+
+/* ===== 状態 ===== */
+let wallet={};
+let setupWallet={1000:2,500:1,100:3,50:1,10:5,5:0,1:0};
+let selected=[];
+let busy=false;
+let uidCounter=0;
+let phase=''; // 現在のフェーズ
+let chosenItems=[];
+let targetPrice=0;
+let purchaseLog=[];
+let trainDestStation=null; // 行き先（選択中）
+let departStation=null;    // 出発した駅（帰り用）
+let isAutoMode=false;
+let autoPlaces=[];
+let autoPlaceIdx=0;
+let noOtsuri=false; // かんたん用（今回は廃止、常におつりあり）
+
+/* ===== SVG ===== */
+function coinSVG(val,size){
+  const C={1:{bg:'#b2b2b2',inner:'#d4d4d4',rim:'#444',text:'1',hole:false},5:{bg:'#c8a84b',inner:'#e0c060',rim:'#5a3a00',text:'5',hole:true},10:{bg:'#b87333',inner:'#d4946a',rim:'#4a1800',text:'10',hole:false},50:{bg:'#b0b0b0',inner:'#d0d0d0',rim:'#333',text:'50',hole:true},100:{bg:'#a8a8a8',inner:'#c8c8c8',rim:'#2a2a2a',text:'100',hole:false},500:{bg:'#a0a8b0',inner:'#c0c8d0',rim:'#1a3060',text:'500',hole:false}};
+  const c=C[val],r=size/2,holeR=size*0.11;
+  const ts=val>=100?size*0.26:val>=10?size*0.30:size*0.36;
+  const textY=c.hole?r*0.52+ts*0.38:r+ts*0.38;
+  const hole=c.hole?`<circle cx="${r}" cy="${r}" r="${holeR}" fill="#fff8e7" stroke="${c.rim}" stroke-width="1.2"/>`:'';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg"><circle cx="${r}" cy="${r}" r="${r-1}" fill="${c.rim}"/><circle cx="${r}" cy="${r}" r="${r-3}" fill="${c.bg}"/><circle cx="${r}" cy="${r}" r="${r-5}" fill="${c.inner}" opacity="0.5"/>${hole}<text x="${r}" y="${textY}" text-anchor="middle" font-size="${ts}" font-weight="900" fill="${c.rim}" font-family="BIZ UDPGothic,sans-serif">${c.text}</text></svg>`;
+}
+function noteSVG(w,h,val){
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="${w-2}" height="${h-2}" rx="5" fill="#7a5010"/><rect x="3" y="3" width="${w-6}" height="${h-6}" rx="4" fill="#ede0c4"/><rect x="6" y="6" width="${w-12}" height="${h-12}" rx="3" fill="#f8f0dc" opacity="0.55"/><text x="${w*0.5}" y="${h*0.63}" text-anchor="middle" font-size="${h*0.33}" font-weight="900" fill="#7a5010" font-family="BIZ UDPGothic,sans-serif">${val}</text></svg>`;
+}
+
+/* ===== 財布 ===== */
+function walletSum(){ return Object.entries(wallet).reduce((s,[v,c])=>s+Number(v)*c,0); }
+
+function renderWallet(returnCoins){
+  const area=document.getElementById('wallet-area');
+  area.innerHTML='';
+  document.getElementById('wallet-sum').textContent=walletSum().toLocaleString()+'円';
+  const active=DENOMS.filter(d=>(wallet[d.val]||0)>0);
+  active.forEach((d,ri)=>{
+    const count=wallet[d.val];
+    const row=document.createElement('div');
+    row.className='denom-row';
+    const isNote=d.type==='note';
+    for(let i=0;i<count;i++){
+      const uid=++uidCounter;
+      const btn=document.createElement('button');
+      btn.className='money-btn'+(isNote?' is-note':'');
+      btn.dataset.uid=uid; btn.dataset.val=d.val;
+      if(isNote){btn.style.cssText=`width:${NOTE_W}px;height:${NOTE_H}px`;btn.innerHTML=noteSVG(NOTE_W,NOTE_H,d.val);}
+      else{btn.style.cssText=`width:${COIN_SIZE}px;height:${COIN_SIZE}px`;btn.innerHTML=coinSVG(d.val,COIN_SIZE);}
+      if(returnCoins){
+        const ri2=returnCoins.find(r=>r.val===d.val);
+        if(ri2&&i>=ri2.existCount){btn.style.animationDelay=((i-ri2.existCount)*80)+'ms';btn.classList.add('returning');}
+      }
+      btn.addEventListener('pointerdown',e=>{e.preventDefault();toggleMoney(d.val,uid,btn);});
+      row.appendChild(btn);
+    }
+    if(ri===active.length-1) row.style.borderBottom='none';
+    area.appendChild(row);
+  });
+}
+
+function toggleMoney(val,uid,btn){
+  if(busy) return;
+  // お金を選べないフェーズ
+  if(['transport','place_select','result'].includes(phase)) return;
+  const idx=selected.findIndex(s=>s.uid===uid);
+  if(idx>=0){selected.splice(idx,1);btn.classList.remove('selected');}
+  else{selected.push({val,uid,btn});btn.classList.add('selected');}
+}
+function clearSelection(){selected.forEach(s=>s.btn.classList.remove('selected'));selected=[];}
+
+/* ===== ボタン表示制御 ===== */
+function setButtons(pay,cant,next,cantTxt,nextTxt){
+  const bp=document.getElementById('btn-pay');
+  const bc=document.getElementById('btn-cant');
+  const bn=document.getElementById('btn-next');
+  bp.style.display=pay?'':'none';
+  bc.style.display=cant?'':'none';
+  bn.style.display=next?'':'none';
+  if(cantTxt) bc.textContent=cantTxt;
+  if(nextTxt) bn.textContent=nextTxt;
+}
+
+/* ===== フェーズ描画 ===== */
+function showPhase(id){
+  phase=id;
+  chosenItems=[];
+  targetPrice=0;
+  trainDestStation=null;
+  clearSelection();
+
+  const titleEl=document.getElementById('scenario-title');
+  const textEl=document.getElementById('scenario-text');
+  const content=document.getElementById('scenario-content');
+  content.innerHTML='';
+
+  // ── 移動手段選択 ──
+  if(id==='transport'){
+    titleEl.textContent='どうやって行く？';
+    textEl.textContent='目的地まではちょっと遠いよ。どうやって行こうか？';
+    [
+      {label:'🚲 自転車で行く（無料）', fn(){
+        purchaseLog.push({name:'自転車で移動',price:0});
+        departStation=null;
+        showPhase('place_select');
+      }},
+      {label:'🚃 電車で行く', fn(){
+        showPhase('train_go');
+      }},
+      {label:'🎲 行くとこおまかせ（電車）', fn(){
+        isAutoMode=true;
+        showPhase('train_go');
+      }},
+    ].forEach(opt=>{
+      const btn=document.createElement('button');
+      btn.className='choice-btn';
+      btn.textContent=opt.label;
+      btn.addEventListener('pointerdown',e=>{e.preventDefault();if(!busy)opt.fn();});
+      content.appendChild(btn);
+    });
+    setButtons(false,false,false);
+    renderWallet(null);
+    return;
+  }
+
+  // ── 電車（行き） ──
+  if(id==='train_go'){
+    titleEl.textContent='電車に乗ろう';
+    textEl.textContent='どの駅まで行く？えらんだら運賃を確かめて払おう。';
+    buildRouteMap(content, 'A'); // A=みさき駅 が当駅
+    buildFareConfirm(content);
+    setButtons(true,false,false);
+    renderWallet(null);
+    return;
+  }
+
+  // ── 場所選択 ──
+  if(id==='place_select'){
+    titleEl.textContent='どこへ行く？';
+    textEl.textContent='行きたい場所をえらんでね。';
+    PLACES.forEach((place,idx)=>{
+      const btn=document.createElement('button');
+      btn.className='choice-btn';
+      btn.textContent=place.emoji+' '+place.name;
+      btn.addEventListener('pointerdown',e=>{e.preventDefault();if(!busy)showPhase('shop_'+idx);});
+      content.appendChild(btn);
+    });
+    // 帰宅ボタン
+    const homeBtn=document.createElement('button');
+    homeBtn.className='choice-btn home-btn';
+    homeBtn.textContent=departStation?'🚃 電車で帰る':'🚲 自転車で帰る';
+    homeBtn.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      if(busy) return;
+      if(departStation){
+        showPhase('train_return');
+      } else {
+        purchaseLog.push({name:'自転車で帰宅',price:0});
+        showPhase('result');
+      }
+    });
+    content.appendChild(homeBtn);
+    setButtons(false,false,false);
+    renderWallet(null);
+    return;
+  }
+
+  // ── お買い物（手動） ──
+  if(id.startsWith('shop_')){
+    const idx=parseInt(id.replace('shop_',''));
+    const place=PLACES[idx];
+    titleEl.textContent=place.emoji+' '+place.name;
+    textEl.textContent='ほしいものをえらぼう。えらばなくてもいいよ。';
+    buildItemCards(content,place.items);
+    setButtons(true,true,false,'かわない');
+    renderWallet(null);
+    return;
+  }
+
+  // ── お買い物（自動モード） ──
+  if(id==='auto_shop'){
+    const place=autoPlaces[autoPlaceIdx];
+    titleEl.textContent=place.emoji+' '+place.name;
+    textEl.textContent='ほしいものをえらぼう。えらばなくてもいいよ。';
+    buildItemCards(content,place.items);
+    setButtons(true,true,false,'かわない');
+    renderWallet(null);
+    return;
+  }
+
+  // ── 電車（帰り） ──
+  if(id==='train_return'){
+    // 帰り：departStationが当駅、みさき駅(A)に帰る
+    titleEl.textContent='帰りの電車';
+    textEl.innerHTML=`今いるのは <b>${departStation.name}</b>。<br>みさき駅までのきっぷを買おう。`;
+    // みさき駅を目的地として自動選択
+    const dist=departStation.distFromA;
+    const fare=getFare(dist);
+    targetPrice=fare;
+    trainDestStation={...STATIONS.find(s=>s.id==='A'), fare};
+    // 路線図（departStationが当駅）＋みさき駅のみ選択可能
+    buildRouteMap(content, departStation.id, true); // returnMode=true
+    buildFareConfirm(content, fare);
+    setButtons(true,false,false);
+    renderWallet(null);
+    return;
+  }
+
+  // ── 結果 ──
+  if(id==='result'){
+    titleEl.textContent='おうちに帰ってきたよ！';
+    textEl.textContent='今日のまとめ';
+    buildResult(content);
+    setButtons(false,false,true,null,'もう一度');
+    renderWallet(null);
+    return;
+  }
+}
+
+/* ===== 路線図（横並び） ===== */
+function buildRouteMap(content, myStId, returnMode){
+  const wrap=document.createElement('div');
+  wrap.className='route-wrap';
+
+  const dirLabels=document.createElement('div');
+  dirLabels.className='route-dir-labels';
+  dirLabels.innerHTML='<span>⬅ くだり</span><span>のぼり ➡</span>';
+  wrap.appendChild(dirLabels);
+
+  const line=document.createElement('div');
+  line.className='route-line';
+
+  const mySt=STATIONS.find(s=>s.id===myStId);
+
+  STATIONS.forEach(st=>{
+    const col=document.createElement('div');
+    col.className='station-col';
+
+    const dot=document.createElement('div');
+    const isMe=st.id===myStId;
+
+    // 帰りモード：みさき駅だけ選択可能
+    // 行きモード：自駅(A)以外すべて選択可能
+    let selectable=false;
+    if(returnMode){
+      selectable=(st.id==='A');
+    } else {
+      selectable=!isMe;
+    }
+
+    dot.className='station-dot'+(isMe?' mystation':selectable?' selectable':'');
+
+    const nameEl=document.createElement('div');
+    nameEl.className='station-name'+(isMe?' mystation-lbl':'');
+    nameEl.textContent=isMe?st.name+'★':st.name;
+
+    col.appendChild(dot);
+    col.appendChild(nameEl);
+
+    // 運賃表示（自分の駅以外）
+    if(!isMe){
+      const myDist=mySt?mySt.distFromA:0;
+      const fare=getFare(Math.abs(st.distFromA-myDist));
+      const fareEl=document.createElement('div');
+      fareEl.className='station-fare';
+      fareEl.textContent=fare+'円';
+      col.appendChild(fareEl);
+
+      if(selectable){
+        dot.addEventListener('pointerdown',e=>{
+          e.preventDefault();
+          // 帰りモードはみさき駅のみ（自動選択済み）
+          if(returnMode) return;
+          trainDestStation={...st,fare};
+          targetPrice=fare;
+          // ハイライト
+          line.querySelectorAll('.station-dot.selectable').forEach(d=>d.classList.remove('chosen'));
+          dot.classList.add('chosen');
+          // 運賃確認を更新
+          const fp=document.getElementById('fare-price');
+          if(fp) fp.textContent=fare+'円';
+        });
+      }
+      // 帰りモードのみさき駅は選択済み表示
+      if(returnMode&&st.id==='A'){
+        dot.classList.add('chosen');
+      }
+    }
+
+    line.appendChild(col);
+  });
+
+  wrap.appendChild(line);
+  content.appendChild(wrap);
+}
+
+function buildFareConfirm(content, fixedFare){
+  const row=document.createElement('div');
+  row.className='fare-confirm';
+  row.innerHTML=`<span class="fare-label">運賃</span><span class="fare-price" id="fare-price">${fixedFare!==undefined?fixedFare+'円':'えらんでね'}</span>`;
+  content.appendChild(row);
+  // total-priceとfareを同期させるため
+  if(fixedFare!==undefined) targetPrice=fixedFare;
+}
+
+/* ===== 商品カード ===== */
+function buildItemCards(content,items){
+  const row=document.createElement('div');
+  row.id='select-cards-row';
+  items.forEach((item,idx)=>{
+    const card=document.createElement('div');
+    card.className='product-card';
+    card.innerHTML=`<div class="card-emoji">${item.emoji}</div><div class="card-name">${item.name}</div><div class="card-price">${item.price}円</div>`;
+    card.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      if(busy) return;
+      const fi=chosenItems.findIndex(ci=>ci._idx===idx);
+      if(fi>=0){chosenItems.splice(fi,1);card.classList.remove('chosen');}
+      else{chosenItems.push({...item,_idx:idx});card.classList.add('chosen');}
+      updateMultiTotal();
+    });
+    row.appendChild(card);
+  });
+  content.appendChild(row);
+
+  const totalRow=document.createElement('div');
+  totalRow.className='total-row';
+  totalRow.innerHTML='<span class="total-label">えらんだごうけい</span><span class="total-price" id="total-price">0円</span>';
+  content.appendChild(totalRow);
+}
+
+function updateMultiTotal(){
+  targetPrice=chosenItems.reduce((s,i)=>s+i.price,0);
+  const tp=document.getElementById('total-price');
+  if(tp) tp.textContent=targetPrice+'円';
+}
+
+/* ===== 結果 ===== */
+function buildResult(content){
+  const list=document.createElement('div');
+  list.className='result-list';
+  let usedTotal=0;
+  if(!purchaseLog.length){
+    list.innerHTML='<div class="result-item">なにも使わなかったよ</div>';
+  } else {
+    purchaseLog.forEach(h=>{
+      const div=document.createElement('div');
+      div.className='result-item';
+      div.innerHTML=`<span>${h.name}</span><span>${h.price>0?'-'+h.price+'円':''}</span>`;
+      list.appendChild(div);
+      usedTotal+=h.price;
+    });
+    const tot=document.createElement('div');
+    tot.className='result-item total-line';
+    tot.innerHTML=`<span>つかった合計</span><span>${usedTotal}円</span>`;
+    list.appendChild(tot);
+  }
+  content.appendChild(list);
+  const rem=document.createElement('div');
+  rem.className='result-remain';
+  rem.textContent='のこり：'+walletSum().toLocaleString()+'円';
+  content.appendChild(rem);
+}
+
+/* ===== しはらう ===== */
+function doPayment(){
+  if(busy) return;
+  const isTrain=(phase==='train_go'||phase==='train_return');
+  const isShop=(phase.startsWith('shop_')||phase==='auto_shop');
+
+  if(isTrain){
+    if(!trainDestStation&&phase==='train_go'){showToast('駅をえらんでね',1400);return;}
+    // train_returnはtargetPrice自動設定済み
+  }
+  if(isShop&&chosenItems.length===0){showToast('なにかえらんでね',1400);return;}
+  if(targetPrice===0){showToast('えらんでね',1400);return;}
+
+  const totalSel=selected.reduce((s,x)=>s+x.val,0);
+  if(totalSel<targetPrice){playBell();showToast('おかねがたりないよ',1400);return;}
+
+  busy=true;
+  const change=totalSel-targetPrice;
+
+  let emojiStr='', nameStr='';
+  if(isTrain){
+    emojiStr='🎫';
+    if(phase==='train_go'){
+      nameStr=`電車（→${trainDestStation.name}）`;
+      departStation=trainDestStation; // 出発駅を記録
+    } else {
+      nameStr='電車（帰り→みさき駅）';
+    }
+    purchaseLog.push({name:nameStr,price:targetPrice});
+  } else {
+    emojiStr=chosenItems.map(i=>i.emoji).join('');
+    nameStr=chosenItems.map(i=>i.name).join('・');
+    purchaseLog.push({name:nameStr,price:targetPrice});
+  }
+
+  playCharin();
+  const promises=selected.map((s,i)=>new Promise(res=>{
+    setTimeout(()=>{s.btn.classList.remove('selected');s.btn.classList.add('paying');setTimeout(res,420);},i*50);
+  }));
+  Promise.all(promises).then(()=>{
+    selected.forEach(s=>{wallet[s.val]=Math.max(0,(wallet[s.val]||0)-1);});
+    selected=[];
+    busy=false;
+    if(change>0){
+      renderWallet(null);
+      showPopup(emojiStr,'かえたよ！',nameStr,change,true);
+    } else {
+      renderWallet(null);
+      showPopup(emojiStr,'かえたよ！',nameStr,0,false);
+    }
+  });
+}
+
+/* ===== がまんする ===== */
+function doCant(){
+  if(busy) return;
+  busy=true;
+  playBell();
+  purchaseLog.push({name:'がまんした',price:0});
+  showToast('がまんした！',1300,()=>{
+    busy=false;
+    afterPaid();
+  });
+}
+
+/* ===== 支払い後・次へ ===== */
+function afterPaid(){
+  if(phase==='train_go'){
+    if(isAutoMode){
+      // ランダムで2〜3か所
+      const shuffled=[...PLACES].sort(()=>Math.random()-0.5);
+      autoPlaces=shuffled.slice(0,2+Math.floor(Math.random()*2));
+      autoPlaceIdx=0;
+      showPhase('auto_shop');
+    } else {
+      showPhase('place_select');
+    }
+  } else if(phase==='train_return'){
+    showPhase('result');
+  } else if(phase==='auto_shop'){
+    autoPlaceIdx++;
+    if(autoPlaceIdx<autoPlaces.length){
+      showPhase('auto_shop');
+    } else {
+      showPhase('train_return');
+    }
+  } else if(phase.startsWith('shop_')){
+    showPhase('place_select');
+  }
+}
+
+/* ===== ポップアップ ===== */
+function showPopup(emoji,title,desc,change,hasChange){
+  document.getElementById('popup-emoji').textContent=emoji;
+  document.getElementById('popup-title').textContent=title;
+  document.getElementById('popup-desc').textContent=desc;
+  const chg=document.getElementById('popup-change');
+  const btnChg=document.getElementById('btn-get-change');
+  const btnOk=document.getElementById('btn-ok-nochange');
+  if(hasChange&&change>0){
+    chg.textContent='おつりは '+change+'円';
+    chg.style.display='block';
+    btnChg.style.display='inline-block';
+    btnChg.dataset.change=change;
+    btnOk.style.display='none';
+  } else {
+    chg.style.display='none';
+    btnChg.style.display='none';
+    btnOk.style.display='inline-block';
+  }
+  document.getElementById('popup').classList.add('show');
+}
+function closePopup(receiveChange,change){
+  document.getElementById('popup').classList.remove('show');
+  if(receiveChange&&change>0){
+    const returnCoins=[];
+    let rest=change;
+    for(const v of [500,100,50,10,5,1]){
+      const n=Math.floor(rest/v);
+      if(n>0){returnCoins.push({val:v,existCount:wallet[v]||0,count:n});wallet[v]=(wallet[v]||0)+n;rest-=v*n;}
+    }
+    renderWallet(returnCoins);
+    setTimeout(()=>afterPaid(),returnCoins.length*80+500);
+  } else {
+    afterPaid();
+  }
+}
+
+/* ===== トースト ===== */
+function showToast(msg,dur,cb){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  setTimeout(()=>{el.classList.remove('show');if(cb)setTimeout(cb,200);},dur);
+}
+
+/* ===== 音 ===== */
+const AudioCtxCls=window.AudioContext||window.webkitAudioContext;
+let audioCtx=null;
+function getACtx(){if(!audioCtx)audioCtx=new AudioCtxCls();if(audioCtx.state==='suspended')audioCtx.resume();return audioCtx;}
+function playCharin(){const ctx=getACtx(),t=ctx.currentTime;[[1200,t,0.15],[1500,t+0.1,0.15],[1800,t+0.2,0.15]].forEach(([freq,start,dur])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(0,start);g.gain.linearRampToValueAtTime(0.25,start+0.02);g.gain.exponentialRampToValueAtTime(0.001,start+dur);o.connect(g);g.connect(ctx.destination);o.start(start);o.stop(start+dur+0.02);});}
+function playBell(){const ctx=getACtx(),t=ctx.currentTime;[[880,t,0.18],[1100,t+0.22,0.18]].forEach(([freq,start,dur])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(0,start);g.gain.linearRampToValueAtTime(0.28,start+0.03);g.gain.exponentialRampToValueAtTime(0.001,start+dur);o.connect(g);g.connect(ctx.destination);o.start(start);o.stop(start+dur+0.05);});}
+
+/* ===== 設定画面 ===== */
+function buildSetupUI(){
+  const rows=document.getElementById('denom-setup-rows');
+  rows.innerHTML='';
+  DENOMS.forEach(d=>{
+    const row=document.createElement('div');
+    row.className='denom-setup-row';
+    const isNote=d.type==='note';
+    const thumb=isNote?noteSVG(44,26,d.val):coinSVG(d.val,26);
+    row.innerHTML=`
+      <div class="denom-label">${thumb}<span>${d.val<1000?d.val+'円':d.val/1000+'千円札'}</span></div>
+      <div class="step-ctrl">
+        <button class="step-btn" data-dec="${d.val}">▽</button>
+        <div class="step-val" id="sv-${d.val}">${setupWallet[d.val]||0}</div>
+        <button class="step-btn" data-inc="${d.val}">△</button>
+        <span style="font-size:12px;color:var(--sub);margin-left:2px">まい</span>
+      </div>`;
+    rows.appendChild(row);
+  });
+  rows.addEventListener('click',e=>{
+    const dec=e.target.closest('[data-dec]');
+    const inc=e.target.closest('[data-inc]');
+    if(dec){ changeSetup(Number(dec.dataset.dec),-1); }
+    if(inc){ changeSetup(Number(inc.dataset.inc),+1); }
+  });
+  updateSetupTotal();
+}
+function changeSetup(val,delta){
+  setupWallet[val]=Math.max(0,Math.min(9,(setupWallet[val]||0)+delta));
+  document.getElementById('sv-'+val).textContent=setupWallet[val];
+  updateSetupTotal();
+}
+function updateSetupTotal(){
+  const t=Object.entries(setupWallet).reduce((s,[v,c])=>s+Number(v)*c,0);
+  document.getElementById('setup-total').textContent=t.toLocaleString()+'円';
+}
+
+/* ===== スタート ===== */
+function startGame(){
+  wallet=Object.fromEntries(Object.entries(setupWallet).map(([k,v])=>[k,v]));
+  purchaseLog=[];
+  departStation=null;
+  trainDestStation=null;
+  isAutoMode=false;
+  autoPlaces=[];
+  autoPlaceIdx=0;
+  document.getElementById('start-screen').classList.remove('active');
+  document.getElementById('main-screen').classList.add('active');
+  showPhase('transport');
+}
+
+/* ===== イベント ===== */
+document.addEventListener('DOMContentLoaded',()=>{
+  buildSetupUI();
+  document.getElementById('start-go-btn').addEventListener('click',startGame);
+  document.getElementById('btn-pay').addEventListener('click',doPayment);
+  document.getElementById('btn-cant').addEventListener('click',doCant);
+  document.getElementById('btn-next').addEventListener('click',()=>{
+    if(phase==='result'){
+      document.getElementById('main-screen').classList.remove('active');
+      document.getElementById('start-screen').classList.add('active');
+    }
+  });
+  document.getElementById('btn-get-change').addEventListener('click',()=>{
+    const c=parseInt(document.getElementById('btn-get-change').dataset.change||'0');
+    closePopup(true,c);
+  });
+  document.getElementById('btn-ok-nochange').addEventListener('click',()=>closePopup(false,0));
+});
+</script>
+</body>
+</html>
