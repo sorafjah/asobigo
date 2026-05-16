@@ -94,14 +94,14 @@
   #scenario-area {
     width: 100%; flex-shrink: 0;
     background: white; border: 2px solid var(--border); border-radius: 14px;
-    padding: 10px 12px;
-    display: flex; flex-direction: column; gap: 8px;
+    padding: 8px 12px;
+    display: flex; flex-direction: column; gap: 6px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    max-height: 56vh;
+    max-height: 48vh;
   }
-  #scenario-title { font-size: 17px; font-weight: bold; color: var(--accent); }
-  #scenario-text  { font-size: 14px; color: var(--text); line-height: 1.5; }
+  #scenario-title { font-size: 16px; font-weight: bold; color: var(--accent); }
+  #scenario-text  { font-size: 13px; color: var(--text); line-height: 1.4; }
   #scenario-content { display: flex; flex-direction: column; gap: 8px; }
 
   /* 選択肢ボタン */
@@ -418,7 +418,7 @@
 /* ===== 定数 ===== */
 const DENOMS=[
   {val:1000,type:'note'},{val:500,type:'coin'},{val:100,type:'coin'},
-  {val:50,type:'coin'},{val:10,type:'coin'},{val:5,type:'coin'},{val:1,type:'coin'}
+  {val:50,type:'coin'},{val:10,type:'coin'}
 ];
 const COIN_SIZE=52, NOTE_W=82, NOTE_H=48;
 
@@ -434,7 +434,8 @@ const STATIONS=[
   {id:'G',name:'あさひ駅', distFromA:3},
   {id:'H',name:'かすみ駅', distFromA:4},
 ];
-function getFare(dist){ return [0,140,190,240,310][Math.min(dist,4)]; }
+// 最遠450円：dist1=140, 2=210, 3=320, 4=450
+function getFare(dist){ return [0,140,210,320,450][Math.min(dist,4)]; }
 
 /* ===== 場所データ ===== */
 const PLACES=[
@@ -455,26 +456,37 @@ const PLACES=[
     ],
     items:[] // buildItemCards用（動的に生成）
   },
-  {name:'ファミレス',emoji:'🍽️',items:[
-    {name:'ハンバーグ',emoji:'🍔',price:780},
-    {name:'パスタ',emoji:'🍝',price:680},
-    {name:'ドリンクバー',emoji:'🥤',price:220},
-    {name:'デザート',emoji:'🍰',price:380},
-  ]},
+  {name:'ファミレス',emoji:'🍽️',famiresRequired:true,
+    items:[
+      {name:'ハンバーグ',emoji:'🍔',price:780},
+      {name:'パスタ',emoji:'🍝',price:680},
+      {name:'カレー',emoji:'🍛',price:620},
+      {name:'ピザトースト',emoji:'🍕',price:550},
+      {name:'ドリンクバー',emoji:'🥤',price:220},
+      {name:'デザート',emoji:'🍰',price:380},
+      {name:'スープ',emoji:'🍲',price:180},
+    ]
+  },
   {name:'コンビニ',emoji:'🏪',items:[
     {name:'おにぎり',emoji:'🍙',price:130},
-    {name:'サンドイッチ',emoji:'🥪',price:220},
-    {name:'ジュース',emoji:'🧃',price:150},
-    {name:'アイス',emoji:'🍦',price:130},
-    {name:'スナック',emoji:'🍿',price:110},
+    {name:'サンドイッチ',emoji:'🥪',price:240},
+    {name:'ジュース',emoji:'🧃',price:160},
+    {name:'アイス',emoji:'🍦',price:140},
+    {name:'スナック',emoji:'🍿',price:120},
+    {name:'から揚げ',emoji:'🍗',price:280},
+    {name:'コーヒー',emoji:'☕',price:190},
+    {name:'肉まん',emoji:'🥟',price:160},
   ]},
   {name:'タピオカ屋',emoji:'🧋',items:[
-    {name:'ミルクティー',emoji:'🧋',price:480},
-    {name:'抹茶タピオカ',emoji:'🍵',price:520},
+    {name:'ミルクティー（S）',emoji:'🧋',price:380},
+    {name:'ミルクティー（L）',emoji:'🧋',price:480},
+    {name:'抹茶タピオカ（S）',emoji:'🍵',price:420},
+    {name:'抹茶タピオカ（L）',emoji:'🍵',price:520},
     {name:'マンゴータピオカ',emoji:'🥭',price:530},
+    {name:'いちごタピオカ',emoji:'🍓',price:550},
   ]},
   {name:'本屋・文具',emoji:'📚',items:[
-    {name:'マンガ1冊',emoji:'📖',price:480},
+    {name:'マンガ1冊',emoji:'📖',price:770},
     {name:'ノート',emoji:'📓',price:220},
     {name:'ボールペン',emoji:'🖊️',price:110},
     {name:'シール',emoji:'⭐',price:150},
@@ -483,7 +495,7 @@ const PLACES=[
 
 /* ===== 状態 ===== */
 let wallet={};
-let setupWallet={1000:1,500:1,100:4,50:1,10:5,5:0,1:0};
+let setupWallet={1000:1,500:1,100:4,50:1,10:5};
 let selected=[];
 let busy=false;
 let uidCounter=0;
@@ -496,7 +508,9 @@ let departStation=null;    // 出発した駅（帰り用）
 let isAutoMode=false;
 let autoPlaces=[];
 let autoPlaceIdx=0;
+let autoStation=null; // おまかせモード用の永続駅情報
 let karaokePlan=null; // カラオケ選択プラン
+let famiresMain=null; // ファミレス選択メイン
 let noOtsuri=false; // かんたん用（今回は廃止、常におつりあり）
 
 /* ===== SVG ===== */
@@ -583,27 +597,66 @@ function showPhase(id){
   if(id==='transport'){
     titleEl.textContent='どうやって行く？';
     textEl.textContent='目的地まではちょっと遠いよ。どうやって行こうか？';
+    const grid=document.createElement('div');
+    grid.style.cssText='display:flex;flex-wrap:wrap;gap:8px;';
     [
-      {label:'🚲 自転車で行く（無料）', fn(){
+      {label:'🚲\n自転車で行く\n（無料）', fn(){
         purchaseLog.push({name:'自転車で移動',price:0});
         departStation=null;
         showPhase('place_select');
       }},
-      {label:'🚃 電車で行く', fn(){
+      {label:'🚃\n電車で行く', fn(){
         showPhase('train_go');
       }},
-      {label:'🎲 行くとこおまかせ（電車）', fn(){
+      {label:'🎲\n行くとこ\nおまかせ', fn(){
         isAutoMode=true;
-        showPhase('train_go');
+        showPhase('auto_itinerary');
       }},
     ].forEach(opt=>{
       const btn=document.createElement('button');
       btn.className='choice-btn';
+      btn.style.cssText='flex:1 1 calc(33% - 6px);min-width:90px;text-align:center;white-space:pre-line;';
       btn.textContent=opt.label;
       btn.addEventListener('pointerdown',e=>{e.preventDefault();if(!busy)opt.fn();});
-      content.appendChild(btn);
+      grid.appendChild(btn);
     });
+    content.appendChild(grid);
     setButtons(false,false,false);
+    renderWallet(null);
+    return;
+  }
+
+  // ── おまかせ：行程紹介 ──
+  if(id==='auto_itinerary'){
+    const selectable=STATIONS.filter(s=>!s.myStation);
+    const randSt=selectable[Math.floor(Math.random()*selectable.length)];
+    const fare=getFare(randSt.distFromA);
+    autoStation={...randSt,fare}; // 永続保存
+    trainDestStation={...randSt,fare};
+    targetPrice=fare;
+    const shuffled=[...PLACES].sort(()=>Math.random()-0.5);
+    autoPlaces=shuffled.slice(0,2+Math.floor(Math.random()*2));
+    autoPlaceIdx=0;
+
+    titleEl.textContent='🎲 今日の行程';
+    const placeNames=autoPlaces.map(p=>p.emoji+p.name).join('と');
+    textEl.textContent=`電車で${randSt.name}まで行って、${placeNames}に行って帰ってくるよ！`;
+
+    const card=document.createElement('div');
+    card.style.cssText='background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;';
+    const rows=[
+      `🚃 みさき駅 → ${randSt.name}（${fare}円）`,
+      ...autoPlaces.map(p=>`${p.emoji} ${p.name}`),
+      `🚃 ${randSt.name} → みさき駅（${fare}円）`,
+    ];
+    rows.forEach((r,i)=>{
+      const div=document.createElement('div');
+      div.style.cssText='font-size:14px;font-weight:bold;color:var(--text);padding:4px 0;'+(i<rows.length-1?'border-bottom:1px dashed var(--border);':'');
+      div.textContent=r;
+      card.appendChild(div);
+    });
+    content.appendChild(card);
+    setButtons(false,false,true,null,'出発！');
     renderWallet(null);
     return;
   }
@@ -611,28 +664,18 @@ function showPhase(id){
   // ── 電車（行き） ──
   if(id==='train_go'){
     titleEl.textContent='電車に乗ろう';
-    // おまかせモードは駅を自動選択
     if(isAutoMode){
-      const selectable=STATIONS.filter(s=>!s.myStation);
-      const randSt=selectable[Math.floor(Math.random()*selectable.length)];
-      const fare=getFare(randSt.distFromA);
-      trainDestStation={...randSt,fare};
-      targetPrice=fare;
-      textEl.innerHTML=`行き先は <b>${randSt.name}</b> に決まった！<br>運賃を確かめて払おう。`;
+      // showPhase冒頭でリセットされた trainDestStation を autoStation から復元
+      trainDestStation={...autoStation};
+      targetPrice=autoStation.fare;
+      textEl.textContent=`${trainDestStation.name}に決まった！運賃を確かめて払おう。`;
     } else {
       textEl.textContent='どの駅まで行く？えらんだら運賃を確かめて払おう。';
     }
     buildRouteMap(content, 'A');
     buildFareConfirm(content, isAutoMode?trainDestStation.fare:undefined);
-    // おまかせモードは路線図の選択点を自動セット
     if(isAutoMode){
       setTimeout(()=>{
-        const dots=document.querySelectorAll('.station-dot.selectable');
-        dots.forEach(d=>{
-          // data属性がないので駅名で照合
-          d.classList.remove('chosen');
-        });
-        // 対応するdotをchosen
         const allDots=document.querySelectorAll('.station-dot');
         const stIdx=STATIONS.findIndex(s=>s.id===trainDestStation.id);
         if(allDots[stIdx]) allDots[stIdx].classList.add('chosen');
@@ -643,16 +686,16 @@ function showPhase(id){
     return;
   }
 
-  // ── 場所選択（横並びグリッド） ──
+  // ── 場所選択（6つ横並び） ──
   if(id==='place_select'){
     titleEl.textContent='どこへ行く？';
     textEl.textContent='行きたい場所をえらんでね。';
     const grid=document.createElement('div');
-    grid.style.cssText='display:flex;flex-wrap:wrap;gap:8px;';
+    grid.style.cssText='display:flex;gap:4px;';
     PLACES.forEach((place,idx)=>{
       const btn=document.createElement('button');
       btn.className='choice-btn';
-      btn.style.cssText='flex:1 1 calc(50% - 4px);min-width:110px;text-align:center;white-space:pre-line;';
+      btn.style.cssText='flex:1 1 0;min-width:0;padding:8px 2px;text-align:center;white-space:pre-line;font-size:10px;line-height:1.2;';
       btn.textContent=place.emoji+'\n'+place.name;
       btn.addEventListener('pointerdown',e=>{e.preventDefault();if(!busy)showPhase('shop_'+idx);});
       grid.appendChild(btn);
@@ -678,24 +721,53 @@ function showPhase(id){
     return;
   }
 
-  // ── カラオケ：プラン必須選択 ──
+  // ── カラオケ：プラン選択（選んだら即支払い） ──
   if(id==='karaoke_plan'){
     const place=PLACES.find(p=>p.karaoke);
     titleEl.textContent=place.emoji+' カラオケ';
-    textEl.textContent='まず、どのプランにする？（どちらか必ずえらんでね）';
+    textEl.textContent='どのプランにする？（えらぶとすぐ支払いになるよ）';
+    const grid=document.createElement('div');
+    grid.style.cssText='display:flex;flex-wrap:wrap;gap:8px;';
     place.plans.forEach(plan=>{
       const btn=document.createElement('button');
       btn.className='choice-btn';
-      btn.innerHTML=`${plan.emoji} ${plan.name}　<b>${plan.price}円</b>`;
+      btn.style.cssText='flex:1 1 calc(50% - 4px);min-width:120px;text-align:center;white-space:pre-line;';
+      btn.textContent=plan.emoji+'\n'+plan.name+'\n'+plan.price+'円';
       btn.addEventListener('pointerdown',e=>{
         e.preventDefault();
         if(busy) return;
         karaokePlan=plan;
-        showPhase('karaoke_extras');
+        // プランを即支払いフェーズへ
+        targetPrice=plan.price;
+        chosenItems=[{...plan,_idx:-1}];
+        showPhase('karaoke_pay');
       });
-      content.appendChild(btn);
+      grid.appendChild(btn);
     });
+    content.appendChild(grid);
     setButtons(false,true,false,'カラオケやめる');
+    renderWallet(null);
+    return;
+  }
+
+  // ── カラオケ：プラン支払い ──
+  if(id==='karaoke_pay'){
+    const place=PLACES.find(p=>p.karaoke);
+    titleEl.textContent=place.emoji+' カラオケ';
+    textEl.textContent=`${karaokePlan.name}（${karaokePlan.price}円）を払おう。`;
+    // showPhase冒頭でリセットされるので再セット
+    targetPrice=karaokePlan.price;
+    chosenItems=[{...karaokePlan,_idx:-1}];
+    // 支払い用に単品表示
+    const sDiv=document.createElement('div');
+    sDiv.style.cssText='display:flex;align-items:center;gap:14px;background:var(--surface);padding:10px 12px;border-radius:12px;border:2px solid var(--border);';
+    sDiv.innerHTML=`<div style="font-size:38px">${karaokePlan.emoji}</div><div><div style="font-size:14px;color:var(--sub)">${karaokePlan.name}</div><div style="font-size:22px;font-weight:bold;color:var(--text)">${karaokePlan.price}円</div></div>`;
+    content.appendChild(sDiv);
+    const confRow=document.createElement('div');
+    confRow.className='fare-confirm';
+    confRow.innerHTML=`<span class="fare-label">はらう金額</span><span class="fare-price">${karaokePlan.price}円</span>`;
+    content.appendChild(confRow);
+    setButtons(true,false,false);
     renderWallet(null);
     return;
   }
@@ -703,28 +775,29 @@ function showPhase(id){
   // ── カラオケ：オプション追加 ──
   if(id==='karaoke_extras'){
     const place=PLACES.find(p=>p.karaoke);
-    titleEl.textContent=place.emoji+' カラオケ';
-    textEl.innerHTML=`プラン：<b>${karaokePlan.name}（${karaokePlan.price}円）</b><br>追加でたのむ？（えらばなくてもOK）`;
-    chosenItems=[{...karaokePlan,_idx:-1}];
-    targetPrice=karaokePlan.price;
+    titleEl.textContent=place.emoji+' カラオケ（追加注文）';
+    textEl.textContent='ドリンクやフードはどうする？（えらばなくてもOK）';
+    chosenItems=[];
+    targetPrice=0;
     buildItemCards(content, place.extras);
     setButtons(true,true,false,'なにもたのまない');
     renderWallet(null);
     return;
   }
 
-  // ── お買い物（手動） ──
+  // ── お買い物（手動モード） ──
   if(id.startsWith('shop_')){
     const idx=parseInt(id.replace('shop_',''));
     const place=PLACES[idx];
-    if(place.karaoke){
-      showPhase('karaoke_plan');
-      return;
-    }
+    if(place.karaoke){ showPhase('karaoke_plan'); return; }
     titleEl.textContent=place.emoji+' '+place.name;
-    textEl.textContent='ほしいものをえらぼう。えらばなくてもいいよ。';
+    if(place.famiresRequired){
+      textEl.textContent='ほしいものをえらぼう。なにか1品はえらんでね。';
+    } else {
+      textEl.textContent='ほしいものをえらぼう。えらばなくてもいいよ。';
+    }
     buildItemCards(content,place.items);
-    setButtons(true,true,false,'かわない');
+    setButtons(true,true,false, place.famiresRequired?'やめる':'かわない');
     renderWallet(null);
     return;
   }
@@ -732,28 +805,30 @@ function showPhase(id){
   // ── お買い物（自動モード） ──
   if(id==='auto_shop'){
     const place=autoPlaces[autoPlaceIdx];
+    if(place.karaoke){ showPhase('karaoke_plan'); return; }
     titleEl.textContent=place.emoji+' '+place.name;
-    textEl.textContent='ほしいものをえらぼう。えらばなくてもいいよ。';
+    if(place.famiresRequired){
+      textEl.textContent='ほしいものをえらぼう。なにか1品はえらんでね。';
+    } else {
+      textEl.textContent='ほしいものをえらぼう。えらばなくてもいいよ。';
+    }
     buildItemCards(content,place.items);
-    setButtons(true,true,false,'かわない');
+    setButtons(true,true,false, place.famiresRequired?'やめる':'かわない');
     renderWallet(null);
     return;
   }
 
   // ── 電車（帰り） ──
   if(id==='train_return'){
-    // 帰り：departStationが当駅、みさき駅(A)に帰る
     titleEl.textContent='帰りの電車';
-    textEl.innerHTML=`今いるのは <b>${departStation.name}</b>。<br>みさき駅までのきっぷを買おう。`;
-    // みさき駅を目的地として自動選択
     const dist=departStation.distFromA;
     const fare=getFare(dist);
     targetPrice=fare;
     trainDestStation={...STATIONS.find(s=>s.id==='A'), fare};
-    // 路線図（departStationが当駅）＋みさき駅のみ選択可能
-    buildRouteMap(content, departStation.id, true); // returnMode=true
+    textEl.textContent=`${departStation.name}からみさき駅まで${fare}円。払おう。`;
+    buildRouteMap(content, departStation.id, true);
     buildFareConfirm(content, fare);
-    setButtons(true,false,false);
+    setButtons(true,true,false,'たりない・帰れない');
     renderWallet(null);
     return;
   }
@@ -772,7 +847,7 @@ function showPhase(id){
       e.preventDefault();
       wallet=Object.fromEntries(Object.entries(setupWallet).map(([k,v])=>[k,v]));
       purchaseLog=[]; departStation=null; trainDestStation=null;
-      isAutoMode=false; autoPlaces=[]; autoPlaceIdx=0; karaokePlan=null;
+      isAutoMode=false; autoPlaces=[]; autoPlaceIdx=0; autoStation=null; karaokePlan=null; famiresMain=null;
       showPhase('transport');
     });
     content.appendChild(replayBtn);
@@ -1025,8 +1100,27 @@ function doCant(){
 
   if(phase==='karaoke_plan'){
     purchaseLog.push({name:'カラオケやめた',price:0});
-    showToast('またこんどね！',1200,()=>{ busy=false; showPhase('place_select'); });
+    showToast('またこんどね！',1200,()=>{
+      busy=false;
+      if(isAutoMode){
+        autoPlaceIdx++;
+        if(autoPlaceIdx<autoPlaces.length){ showPhase('auto_shop'); }
+        else { showPhase('train_return'); }
+      } else {
+        showPhase('place_select');
+      }
+    });
     return;
+  }
+
+  // ファミレスで何も選ばずやめる場合（手動・自動とも）
+  if((phase.startsWith('shop_')||phase==='auto_shop')){
+    const place = phase==='auto_shop' ? autoPlaces[autoPlaceIdx] : PLACES[parseInt(phase.replace('shop_',''))];
+    if(place.famiresRequired && chosenItems.length===0){
+      purchaseLog.push({name:'ファミレスやめた',price:0});
+      showToast('またこんどね！',1200,()=>{ busy=false; afterPaid(); });
+      return;
+    }
   }
 
   purchaseLog.push({name:'がまんした',price:0});
@@ -1040,10 +1134,6 @@ function doCant(){
 function afterPaid(){
   if(phase==='train_go'){
     if(isAutoMode){
-      // ランダムで2〜3か所＋駅も自動選択済み（train_goで設定）
-      const shuffled=[...PLACES].sort(()=>Math.random()-0.5);
-      autoPlaces=shuffled.slice(0,2+Math.floor(Math.random()*2));
-      autoPlaceIdx=0;
       showPhase('auto_shop');
     } else {
       showPhase('place_select');
@@ -1057,9 +1147,20 @@ function afterPaid(){
     } else {
       showPhase('train_return');
     }
-  } else if(phase==='karaoke_plan'||phase==='karaoke_extras'){
-    showPhase('place_select');
+  } else if(phase==='karaoke_pay'){
+    // プラン支払い後→ドリンク追加へ
+    showPhase('karaoke_extras');
+  } else if(phase==='karaoke_extras'){
+    // カラオケ追加終了後
+    if(isAutoMode){
+      autoPlaceIdx++;
+      if(autoPlaceIdx<autoPlaces.length){ showPhase('auto_shop'); }
+      else { showPhase('train_return'); }
+    } else {
+      showPhase('place_select');
+    }
   } else if(phase.startsWith('shop_')){
+    // 手動shop_は必ずplace_selectへ
     showPhase('place_select');
   }
 }
@@ -1161,7 +1262,9 @@ function startGame(){
   isAutoMode=false;
   autoPlaces=[];
   autoPlaceIdx=0;
+  autoStation=null;
   karaokePlan=null;
+  famiresMain=null;
   document.getElementById('start-screen').classList.remove('active');
   document.getElementById('main-screen').classList.add('active');
   showPhase('transport');
@@ -1174,15 +1277,15 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('btn-pay').addEventListener('click',doPayment);
   document.getElementById('btn-cant').addEventListener('click',doCant);
   document.getElementById('btn-next').addEventListener('click',()=>{
-    if(phase==='result'){
-      // 同じお小遣いでもう一度
+    if(phase==='auto_itinerary'){
+      // 行程確認→電車乗車へ
+      showPhase('train_go');
+    } else if(phase==='result'){
       wallet=Object.fromEntries(Object.entries(setupWallet).map(([k,v])=>[k,v]));
       purchaseLog=[];
-      departStation=null;
-      trainDestStation=null;
-      isAutoMode=false;
-      autoPlaces=[];
-      autoPlaceIdx=0;
+      departStation=null; trainDestStation=null;
+      isAutoMode=false; autoPlaces=[]; autoPlaceIdx=0; autoStation=null;
+      karaokePlan=null; famiresMain=null;
       showPhase('transport');
     }
   });
