@@ -213,7 +213,7 @@
     box-shadow: 0 4px 8px rgba(232,145,58,0.3);
   }
   .card-emoji { font-size: 32px; line-height: 1; }
-  .card-name  { font-size: 13px; color: var(--sub); text-align: center; line-height: 1.2; height: 26px; overflow: hidden; }
+  .card-name  { font-size: 13px; color: var(--sub); text-align: center; line-height: 1.2; }
   .card-price { font-size: 15px; font-weight: bold; color: var(--text); }
 
   .total-row {
@@ -632,7 +632,7 @@ function showPhase(id){
     ].forEach(opt=>{
       const card=document.createElement('div');
       card.className='product-card';
-      card.innerHTML=`<div class="card-emoji">${opt.emoji}</div><div class="card-name" style="height:auto;font-weight:normal;white-space:nowrap;font-size:13px;">${opt.name}</div><div style="font-size:12px;color:var(--sub);">${opt.sub||'　'}</div>`;
+      card.innerHTML=`<div class="card-emoji">${opt.emoji}</div><div class="card-name" style="height:auto;font-weight:normal;white-space:nowrap;font-size:13px;">${opt.name}</div>${opt.sub?`<div style="font-size:12px;color:var(--sub);">${opt.sub}</div>`:''}`;
       card.addEventListener('pointerdown',e=>{
         e.preventDefault();
         if(!busy){card.classList.add('chosen');setTimeout(()=>{card.classList.remove('chosen');opt.fn();},150);}
@@ -755,21 +755,24 @@ function showPhase(id){
     titleEl.textContent=place.emoji+' カラオケ';
     textEl.textContent='どのプランにする？（えらぶとすぐ支払いになるよ）';
     const grid=document.createElement('div');
-    grid.style.cssText='display:flex;flex-wrap:wrap;gap:8px;';
+    grid.id='select-cards-row';
     place.plans.forEach(plan=>{
-      const btn=document.createElement('button');
-      btn.className='choice-btn';
-      btn.style.cssText='flex:1 1 calc(50% - 4px);min-width:120px;text-align:center;white-space:pre-line;';
-      btn.textContent=plan.emoji+'\n'+plan.name+'\n'+plan.price+'円';
-      btn.addEventListener('pointerdown',e=>{
+      const card=document.createElement('div');
+      card.className='product-card';
+      card.innerHTML=`<div class="card-emoji">${plan.emoji}</div><div class="card-name" style="height:auto;font-weight:normal;">${plan.name}</div><div class="card-price">${plan.price}円</div>`;
+      card.addEventListener('pointerdown',e=>{
         e.preventDefault();
         if(busy) return;
-        karaokePlan=plan;
-        targetPrice=plan.price;
-        chosenItems=[{...plan,_idx:-1}];
-        showPhase('karaoke_pay');
+        card.classList.add('chosen');
+        setTimeout(()=>{
+          card.classList.remove('chosen');
+          karaokePlan=plan;
+          targetPrice=plan.price;
+          chosenItems=[{...plan,_idx:-1}];
+          showPhase('karaoke_pay');
+        },150);
       });
-      grid.appendChild(btn);
+      grid.appendChild(card);
     });
     content.appendChild(grid);
     setButtons(false,true,false,'カラオケやめる');
