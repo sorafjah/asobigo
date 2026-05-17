@@ -286,7 +286,7 @@
   .action-btn:active { transform: translateY(4px); box-shadow: none; }
   #btn-pay  { background: var(--accent); color: white; }
   #btn-cant { background: #d8c8a0; color: var(--sub); }
-  #btn-next { background: var(--blue); color: white; }
+  #btn-next { background: var(--accent); color: white; }
 
   /* ===== お金ボタン ===== */
   .money-btn {
@@ -591,29 +591,29 @@ function showPhase(id){
     titleEl.textContent='どうやって行く？';
     textEl.textContent='目的地まではちょっと遠いよ。どうやって行こうか？';
     const grid=document.createElement('div');
-    // ★ 横1列レイアウト
-    grid.style.cssText='display:flex;flex-direction:row;gap:8px;';
+    grid.id='select-cards-row';
     [
-      {label:'🚲 自転車で行く（無料）', fn(){
+      {emoji:'🚲', name:'自転車で行く', sub:'無料', fn(){
         purchaseLog.push({name:'自転車で移動',price:0});
         departStation=null;
         showPhase('place_select');
       }},
-      {label:'🚃 電車で行く', fn(){
+      {emoji:'🚃', name:'電車で行く', sub:'', fn(){
         showPhase('train_go');
       }},
-      {label:'🎲 行くとこおまかせ', fn(){
+      {emoji:'🎲', name:'行くとこおまかせ', sub:'', fn(){
         isAutoMode=true;
         showPhase('auto_itinerary');
       }},
     ].forEach(opt=>{
-      const btn=document.createElement('button');
-      btn.className='choice-btn';
-      // ★ 改行なし、絵文字大きめ、flex均等
-      btn.style.cssText='flex:1;text-align:center;white-space:normal;font-size:14px;line-height:1.4;padding:12px 6px;';
-      btn.textContent=opt.label;
-      btn.addEventListener('pointerdown',e=>{e.preventDefault();if(!busy)opt.fn();});
-      grid.appendChild(btn);
+      const card=document.createElement('div');
+      card.className='product-card';
+      card.innerHTML=`<div class="card-emoji">${opt.emoji}</div><div class="card-name" style="height:auto;">${opt.name}</div><div class="card-price" style="font-size:13px;color:var(--sub);">${opt.sub||'　'}</div>`;
+      card.addEventListener('pointerdown',e=>{
+        e.preventDefault();
+        if(!busy){card.classList.add('chosen');setTimeout(()=>{card.classList.remove('chosen');opt.fn();},150);}
+      });
+      grid.appendChild(card);
     });
     content.appendChild(grid);
     setButtons(false,false,false);
@@ -652,7 +652,7 @@ function showPhase(id){
     });
     content.appendChild(card);
     // ★ 修正：次へボタンを確実に表示
-    setButtons(false, false, true, null, '出発！');
+    setButtons(false, false, true, null, 'レッツゴー♪');
     renderWallet(null);
     return;
   }
@@ -681,40 +681,45 @@ function showPhase(id){
     return;
   }
 
-  // ── 場所選択（横1列×6行） ──
+  // ── 場所選択（商品カード風、3列×2行＋帰るカード） ──
   if(id==='place_select'){
     titleEl.textContent='どこへ行く？';
     textEl.textContent='行きたい場所をえらんでね。';
     const grid=document.createElement('div');
-    // ★ 横1列レイアウト（縦に並べる）
-    grid.style.cssText='display:flex;flex-direction:column;gap:6px;';
+    grid.id='select-cards-row';
     PLACES.forEach((place,idx)=>{
-      const btn=document.createElement('button');
-      btn.className='choice-btn';
-      // ★ 絵文字大きめ、横並び、1行
-      btn.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:16px;';
-      btn.innerHTML=`<span style="font-size:26px;line-height:1;flex-shrink:0">${place.emoji}</span><span>${place.name}</span>`;
-      btn.addEventListener('pointerdown',e=>{e.preventDefault();if(!busy)showPhase('shop_'+idx);});
-      grid.appendChild(btn);
+      const card=document.createElement('div');
+      card.className='product-card';
+      card.innerHTML=`<div class="card-emoji">${place.emoji}</div><div class="card-name" style="height:auto;">${place.name}</div><div class="card-price" style="visibility:hidden;font-size:13px;">　</div>`;
+      card.addEventListener('pointerdown',e=>{
+        e.preventDefault();
+        if(!busy){card.classList.add('chosen');setTimeout(()=>{card.classList.remove('chosen');showPhase('shop_'+idx);},150);}
+      });
+      grid.appendChild(card);
     });
-    content.appendChild(grid);
-    const homeBtn=document.createElement('button');
-    homeBtn.className='choice-btn home-btn';
-    homeBtn.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:16px;margin-top:2px;';
-    homeBtn.innerHTML=departStation
-      ? `<span style="font-size:26px;line-height:1;flex-shrink:0">🚃</span><span>電車で帰る</span>`
-      : `<span style="font-size:26px;line-height:1;flex-shrink:0">🚲</span><span>自転車で帰る</span>`;
-    homeBtn.addEventListener('pointerdown',e=>{
+    // 帰るカードを7枚目として追加
+    const homeCard=document.createElement('div');
+    homeCard.className='product-card';
+    homeCard.style.cssText='border-color:#a5d6a7;background:#f0faf0;';
+    const homeEmoji=departStation?'🚃':'🚲';
+    const homeName=departStation?'電車で帰る':'自転車で帰る';
+    homeCard.innerHTML=`<div class="card-emoji">${homeEmoji}</div><div class="card-name" style="height:auto;color:#2e7d32;">${homeName}</div><div class="card-price" style="visibility:hidden;font-size:13px;">　</div>`;
+    homeCard.addEventListener('pointerdown',e=>{
       e.preventDefault();
       if(busy) return;
-      if(departStation){
-        showPhase('train_return');
-      } else {
-        purchaseLog.push({name:'自転車で帰宅',price:0});
-        showPhase('result');
-      }
+      homeCard.classList.add('chosen');
+      setTimeout(()=>{
+        homeCard.classList.remove('chosen');
+        if(departStation){
+          showPhase('train_return');
+        } else {
+          purchaseLog.push({name:'自転車で帰宅',price:0});
+          showPhase('result');
+        }
+      },150);
     });
-    content.appendChild(homeBtn);
+    grid.appendChild(homeCard);
+    content.appendChild(grid);
     setButtons(false,false,false);
     renderWallet(null);
     return;
