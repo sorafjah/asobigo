@@ -198,12 +198,12 @@
     display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px;
   }
   .product-card {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    padding: 8px 6px; border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    padding: 8px 4px; border-radius: 12px;
     border: 3px solid var(--border); background: var(--surface);
     cursor: pointer; -webkit-tap-highlight-color: transparent;
     transition: transform 0.1s, border-color 0.1s;
-    width: calc(50% - 4px); max-width: 160px;
+    width: calc(50% - 4px); max-width: 140px;
     font-family: inherit;
   }
   .product-card:active { transform: scale(0.94); }
@@ -212,8 +212,8 @@
     transform: translateY(-3px);
     box-shadow: 0 4px 8px rgba(232,145,58,0.3);
   }
-  .card-emoji { font-size: 28px; line-height: 1; }
-  .card-name  { font-size: 11px; color: var(--sub); text-align: center; line-height: 1.2; height: 26px; overflow: hidden; }
+  .card-emoji { font-size: 32px; line-height: 1; }
+  .card-name  { font-size: 13px; color: var(--sub); text-align: center; line-height: 1.2; height: 26px; overflow: hidden; }
   .card-price { font-size: 15px; font-weight: bold; color: var(--text); }
 
   .total-row {
@@ -342,6 +342,21 @@
   #btn-get-change  { background: var(--correct); }
   #btn-ok-nochange { background: var(--accent); }
 
+  /* ===== 帰れないポップアップ ===== */
+  #popup2 {
+    position: fixed; inset:0; background: rgba(40,20,0,0.45);
+    display: none; align-items: center; justify-content: center; z-index: 500;
+  }
+  #popup2.show { display: flex; }
+  #popup2-inner {
+    background: white; border-radius: 22px; padding: 24px 28px;
+    text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    animation: popIn 0.3s cubic-bezier(.34,1.56,.64,1) both; max-width: 88vw;
+  }
+  #popup2-emoji { font-size: 46px; }
+  #popup2-msg { font-size: 16px; font-weight: bold; color: var(--text); line-height: 1.6; }
+
   /* ===== トースト ===== */
   #toast {
     position: fixed; top:50%; left:50%;
@@ -406,6 +421,15 @@
     <div id="popup-change" style="display:none"></div>
     <button class="popup-btn" id="btn-get-change"  style="display:none">おつりをもらう</button>
     <button class="popup-btn" id="btn-ok-nochange" style="display:none">つぎへ</button>
+  </div>
+</div>
+
+<!-- ===== 帰れないポップアップ ===== -->
+<div id="popup2">
+  <div id="popup2-inner">
+    <div id="popup2-emoji">😔</div>
+    <div id="popup2-msg">帰れないね。<br>今度は帰りのことも考えてお金を使おう</div>
+    <button class="popup-btn" id="btn-cant-ok" style="background:var(--accent);">わかった</button>
   </div>
 </div>
 
@@ -608,7 +632,7 @@ function showPhase(id){
     ].forEach(opt=>{
       const card=document.createElement('div');
       card.className='product-card';
-      card.innerHTML=`<div class="card-emoji">${opt.emoji}</div><div class="card-name" style="height:auto;">${opt.name}</div><div class="card-price" style="font-size:13px;color:var(--sub);">${opt.sub||'　'}</div>`;
+      card.innerHTML=`<div class="card-emoji">${opt.emoji}</div><div class="card-name" style="height:auto;font-weight:normal;white-space:nowrap;font-size:13px;">${opt.name}</div><div style="font-size:12px;color:var(--sub);">${opt.sub||'　'}</div>`;
       card.addEventListener('pointerdown',e=>{
         e.preventDefault();
         if(!busy){card.classList.add('chosen');setTimeout(()=>{card.classList.remove('chosen');opt.fn();},150);}
@@ -690,7 +714,7 @@ function showPhase(id){
     PLACES.forEach((place,idx)=>{
       const card=document.createElement('div');
       card.className='product-card';
-      card.innerHTML=`<div class="card-emoji">${place.emoji}</div><div class="card-name" style="height:auto;">${place.name}</div><div class="card-price" style="visibility:hidden;font-size:13px;">　</div>`;
+      card.innerHTML=`<div class="card-emoji">${place.emoji}</div><div class="card-name" style="height:auto;font-weight:normal;">${place.name}</div>`;
       card.addEventListener('pointerdown',e=>{
         e.preventDefault();
         if(!busy){card.classList.add('chosen');setTimeout(()=>{card.classList.remove('chosen');showPhase('shop_'+idx);},150);}
@@ -700,10 +724,10 @@ function showPhase(id){
     // 帰るカードを7枚目として追加
     const homeCard=document.createElement('div');
     homeCard.className='product-card';
-    homeCard.style.cssText='border-color:#a5d6a7;background:#f0faf0;';
+    homeCard.style.cssText='border-color:#c8dcca;background:#f5faf5;';
     const homeEmoji=departStation?'🚃':'🚲';
     const homeName=departStation?'電車で帰る':'自転車で帰る';
-    homeCard.innerHTML=`<div class="card-emoji">${homeEmoji}</div><div class="card-name" style="height:auto;color:#2e7d32;">${homeName}</div><div class="card-price" style="visibility:hidden;font-size:13px;">　</div>`;
+    homeCard.innerHTML=`<div class="card-emoji">${homeEmoji}</div><div class="card-name" style="height:auto;font-weight:normal;color:#4a7d52;">${homeName}</div>`;
     homeCard.addEventListener('pointerdown',e=>{
       e.preventDefault();
       if(busy) return;
@@ -1072,19 +1096,9 @@ function doCant(){
   if(isTrain){
     const rest=walletSum();
     const needed=targetPrice||0;
-    let msg='';
-    if(rest===0){
-      msg='お金が全部なくなっちゃった😢\nやめるしかないね…';
-    } else if(rest<needed){
-      msg=`${rest}円しかない…\n${needed}円には足りないね😔`;
-    } else {
-      msg='お金はあるけど\n払えなかったのかな？';
-    }
     purchaseLog.push({name:phase==='train_go'?'電車に乗れなかった':'帰れなかった',price:0});
-    showToast(msg, 2200,()=>{
-      busy=false;
-      showPhase('result');
-    });
+    busy=false;
+    showCantPopup();
     return;
   }
 
@@ -1195,6 +1209,15 @@ function showToast(msg,dur,cb){
   setTimeout(()=>{el.classList.remove('show');if(cb)setTimeout(cb,200);},dur);
 }
 
+/* ===== 帰れないポップアップ ===== */
+function showCantPopup(){
+  document.getElementById('popup2').classList.add('show');
+}
+function closeCantPopup(){
+  document.getElementById('popup2').classList.remove('show');
+  showPhase('result');
+}
+
 /* ===== 音 ===== */
 const AudioCtxCls=window.AudioContext||window.webkitAudioContext;
 let audioCtx=null;
@@ -1286,6 +1309,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     closePopup(true,c);
   });
   document.getElementById('btn-ok-nochange').addEventListener('click',()=>closePopup(false,0));
+  document.getElementById('btn-cant-ok').addEventListener('click',()=>closeCantPopup());
 });
 </script>
 </body>
