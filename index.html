@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>おでかけシミュレーター</title>
+<title>おでかけしてお金を支払う練習</title>
 <style>
   :root {
     --bg: #fdf6e3;
@@ -40,7 +40,16 @@
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
-  .start-title { font-size: 24px; font-weight: bold; color: var(--text); text-align: center; }
+  .start-title { font-size: 22px; font-weight: bold; color: var(--text); text-align: center; }
+
+  .help-link-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: white; border: 2px solid var(--border); border-radius: 20px;
+    padding: 8px 18px; font-family: inherit; font-size: 14px; font-weight: bold;
+    color: var(--sub); cursor: pointer; -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+  }
+  .help-link-btn:active { background: #fff3e0; }
 
   .setup-card {
     width: 100%; max-width: 480px;
@@ -288,6 +297,17 @@
   #btn-cant { background: #d8c8a0; color: var(--sub); }
   #btn-next { background: var(--accent); color: white; }
 
+  /* 下部リンク行 */
+  #bottom-link-row {
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    padding: 2px 0 0;
+  }
+  .link-btn {
+    background: none; border: none; font-size: 12px; color: #bba878;
+    cursor: pointer; font-family: inherit; padding: 4px 12px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   /* ===== お金ボタン ===== */
   .money-btn {
     background: none; border: 3px solid transparent; border-radius: 50%;
@@ -357,6 +377,54 @@
   #popup2-emoji { font-size: 46px; }
   #popup2-msg { font-size: 16px; font-weight: bold; color: var(--text); line-height: 1.6; }
 
+  /* ===== ヘルプポップアップ ===== */
+  #help-popup {
+    position: fixed; inset:0; background: rgba(40,20,0,0.5);
+    display: none; align-items: center; justify-content: center; z-index: 600;
+    padding: 16px;
+  }
+  #help-popup.show { display: flex; }
+  #help-inner {
+    background: white; border-radius: 22px; padding: 22px 22px 18px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+    display: flex; flex-direction: column; gap: 12px;
+    animation: popIn 0.3s cubic-bezier(.34,1.56,.64,1) both;
+    max-width: 480px; width: 100%;
+    max-height: 86vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  #help-title { font-size: 19px; font-weight: bold; color: var(--accent); text-align: center; }
+  .help-step {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: var(--surface); border: 2px solid var(--border); border-radius: 12px;
+    padding: 10px 12px;
+  }
+  .help-step-num {
+    flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); color: white; font-weight: bold; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .help-step-text { font-size: 14px; color: var(--text); line-height: 1.6; }
+  #help-checkbox-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 4px 0;
+  }
+  #help-checkbox-row input[type="checkbox"] {
+    width: 22px; height: 22px; flex-shrink: 0;
+  }
+  #help-checkbox-row label { font-size: 13px; color: var(--sub); }
+  #help-close-btn {
+    width: 100%; padding: 13px; border: none; border-radius: 22px;
+    background: var(--accent); color: white; font-family: inherit;
+    font-size: 17px; font-weight: bold; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 4px 0 #b86a1a;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  #help-close-btn:active { transform: translateY(4px); box-shadow: none; }
+  #help-note {
+    font-size: 11px; color: var(--sub); text-align: center; opacity: 0.8;
+  }
+
   /* ===== トースト ===== */
   #toast {
     position: fixed; top:50%; left:50%;
@@ -375,7 +443,9 @@
 
 <!-- ===== START ===== -->
 <div id="start-screen" class="screen active">
-  <div class="start-title">おでかけシミュレーター</div>
+  <div class="start-title">おでかけしてお金を支払う練習</div>
+
+  <button class="help-link-btn" id="btn-open-help">❓ つかいかた</button>
 
   <div class="setup-card">
     <div class="setup-card-title">お小遣いを用意しよう</div>
@@ -407,8 +477,54 @@
     <button class="action-btn" id="btn-cant">がまんする</button>
     <button class="action-btn" id="btn-next">つぎへ</button>
   </div>
-  <div style="text-align:center; padding: 2px 0 0;">
-    <button id="btn-quit" style="background:none;border:none;font-size:12px;color:#bba878;cursor:pointer;font-family:inherit;padding:4px 12px;-webkit-tap-highlight-color:transparent;">やめる</button>
+  <div id="bottom-link-row">
+    <button class="link-btn" id="btn-open-help-main">❓ つかいかた</button>
+    <button class="link-btn" id="btn-quit">やめる</button>
+  </div>
+</div>
+
+<!-- ===== ヘルプポップアップ ===== -->
+<div id="help-popup">
+  <div id="help-inner">
+    <div id="help-title">つかいかた</div>
+
+    <div class="help-step">
+      <div class="help-step-num">1</div>
+      <div class="help-step-text">はじめに、<ruby>持<rt>も</rt></ruby>っていく<ruby>硬貨<rt>こうか</rt></ruby>やお<ruby>札<rt>さつ</rt></ruby>のまい<ruby>数<rt>すう</rt></ruby>を△▽ボタンできめてね。</div>
+    </div>
+    <div class="help-step">
+      <div class="help-step-num">2</div>
+      <div class="help-step-text">「出発！」をおすと、おでかけがはじまるよ。行きかたやお店をえらんでね。</div>
+    </div>
+    <div class="help-step">
+      <div class="help-step-num">3</div>
+      <div class="help-step-text">さいふのお金をタップしてえらんでから、「しはらう」をおしてね。</div>
+    </div>
+    <div class="help-step">
+      <div class="help-step-num">4</div>
+      <div class="help-step-text">お金が足りないときは、べつのお金をえらびなおしてね。買わないときは「がまんする」をおしてね。</div>
+    </div>
+    <div class="help-step">
+      <div class="help-step-num">5</div>
+      <div class="help-step-text">おうちに帰ってきたら、つかったお金とのこったお金を見ることができるよ。</div>
+    </div>
+
+    <div id="help-checkbox-row">
+      <input type="checkbox" id="help-dont-show">
+      <label for="help-dont-show">次回からこの説明を表示しない</label>
+    </div>
+
+    <button id="help-close-btn">わかった！</button>
+    <div id="help-note">※プレビュー画面では「次回から表示しない」の記憶は保存されません</div>
+  </div>
+</div>
+
+<!-- ===== 帰れないポップアップ ===== -->
+<div id="popup2">
+  <div id="popup2-inner">
+    <div id="popup2-emoji">😔</div>
+    <div id="popup2-msg">帰れないね。<br>今度は帰りのことも考えてお金を使おう</div>
+    <button class="popup-btn" id="btn-cant-ok" style="background:var(--accent);">わかった</button>
   </div>
 </div>
 
@@ -424,15 +540,6 @@
   </div>
 </div>
 
-<!-- ===== 帰れないポップアップ ===== -->
-<div id="popup2">
-  <div id="popup2-inner">
-    <div id="popup2-emoji">😔</div>
-    <div id="popup2-msg">帰れないね。<br>今度は帰りのことも考えてお金を使おう</div>
-    <button class="popup-btn" id="btn-cant-ok" style="background:var(--accent);">わかった</button>
-  </div>
-</div>
-
 <div id="toast"></div>
 
 <script>
@@ -442,6 +549,7 @@ const DENOMS=[
   {val:50,type:'coin'},{val:10,type:'coin'}
 ];
 const COIN_SIZE=52, NOTE_W=82, NOTE_H=48;
+const HELP_STORAGE_KEY='odekake_hide_help';
 
 /* ===== 駅データ ===== */
 const STATIONS=[
@@ -675,7 +783,6 @@ function showPhase(id){
       card.appendChild(div);
     });
     content.appendChild(card);
-    // ★ 修正：次へボタンを確実に表示
     setButtons(false, false, true, null, 'レッツゴー♪');
     renderWallet(null);
     return;
@@ -1097,8 +1204,6 @@ function doCant(){
 
   const isTrain=(phase==='train_go'||phase==='train_return');
   if(isTrain){
-    const rest=walletSum();
-    const needed=targetPrice||0;
     purchaseLog.push({name:phase==='train_go'?'電車に乗れなかった':'帰れなかった',price:0});
     busy=false;
     showCantPopup();
@@ -1221,6 +1326,29 @@ function closeCantPopup(){
   showPhase('result');
 }
 
+/* ===== ヘルプ ===== */
+function openHelp(){
+  document.getElementById('help-popup').classList.add('show');
+}
+function closeHelp(){
+  document.getElementById('help-popup').classList.remove('show');
+  const checked=document.getElementById('help-dont-show').checked;
+  if(checked){
+    try{
+      localStorage.setItem(HELP_STORAGE_KEY,'1');
+    }catch(e){
+      /* プレビュー環境などlocalStorageが使えない場合は何もしない */
+    }
+  }
+}
+function shouldShowHelpOnLoad(){
+  try{
+    return localStorage.getItem(HELP_STORAGE_KEY)!=='1';
+  }catch(e){
+    return true;
+  }
+}
+
 /* ===== 音 ===== */
 const AudioCtxCls=window.AudioContext||window.webkitAudioContext;
 let audioCtx=null;
@@ -1285,6 +1413,12 @@ function startGame(){
 /* ===== イベント ===== */
 document.addEventListener('DOMContentLoaded',()=>{
   buildSetupUI();
+  if(shouldShowHelpOnLoad()){ openHelp(); }
+
+  document.getElementById('btn-open-help').addEventListener('click',openHelp);
+  document.getElementById('btn-open-help-main').addEventListener('click',openHelp);
+  document.getElementById('help-close-btn').addEventListener('click',closeHelp);
+
   document.getElementById('start-go-btn').addEventListener('click',startGame);
   document.getElementById('btn-pay').addEventListener('pointerdown',e=>{e.preventDefault();doPayment();});
   document.getElementById('btn-cant').addEventListener('pointerdown',e=>{e.preventDefault();doCant();});
